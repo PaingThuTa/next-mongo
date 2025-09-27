@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import CategoryForm from "@/app/v2/components/forms/CategoryForm";
 import Link from "next/link";
 
-import { DataGrid, GridToolbar , GridRowsProp, GridColDef } from "@mui/x-data-grid";
+import { DataGrid, GridToolbar, GridRowsProp, GridColDef, GridActionsCellItem } from "@mui/x-data-grid";
 
 import Modal from "@mui/material/Modal";
 
@@ -19,16 +19,61 @@ import BeachAccessIcon from "@mui/icons-material/BeachAccess";
 
 import IconButton from "@mui/material/IconButton";
 import AddBoxIcon from "@mui/icons-material/AddBox";
+import EditIcon from "@mui/icons-material/Edit";
+import DeleteIcon from "@mui/icons-material/Delete";
 
 export default function Home() {
   const [category, setCategory] = useState([]);
+  const [editData, setEditData] = useState(null);
+  const [isEdit, setIsEdit] = useState(false);
+
+  const APIBASE = process.env.NEXT_PUBLIC_API_URL;
+  console.log(`${APIBASE}/category`);
+
+  const handleEdit = (categoryData) => {
+    setEditData(categoryData);
+    setIsEdit(true);
+    setOpen(true);
+  };
+
+  const handleDelete = async (id) => {
+    if (!confirm("Are you sure you want to delete this category?")) return;
+
+    try {
+      await fetch(`${APIBASE}/category/${id}`, {
+        method: "DELETE",
+      });
+      fetchCategory();
+    } catch (error) {
+      console.error("Error deleting category:", error);
+    }
+  };
+
   const columns = [
-    { field: "name", headerName: "Category Name", width: 150 },
-    // { field: 'col2', headerName: 'Column 2', width: 150 },
+    { field: "name", headerName: "Category Name", width: 200 },
+    { field: "order", headerName: "Order", width: 120, type: "number" },
+    {
+      field: "actions",
+      type: "actions",
+      headerName: "Actions",
+      width: 120,
+      getActions: (params) => [
+        <GridActionsCellItem
+          icon={<EditIcon />}
+          label="Edit"
+          onClick={() => handleEdit(params.row)}
+          key="edit"
+        />,
+        <GridActionsCellItem
+          icon={<DeleteIcon />}
+          label="Delete"
+          onClick={() => handleDelete(params.id)}
+          key="delete"
+        />,
+      ],
+    },
   ];
 
-  const API_BASE = process.env.NEXT_PUBLIC_API_URL;
-  console.log(`${API_BASE}/category`);
   async function fetchCategory() {
     const data = await fetch(`${APIBASE}/category`);
     const c = await data.json();
@@ -40,16 +85,24 @@ export default function Home() {
   }
 
   const [open, setOpen] = useState(false);
-  const handleOpen = () => setOpen(true);
-  const handleClose = () => setOpen(false);
+  const handleOpen = () => {
+    setIsEdit(false);
+    setEditData(null);
+    setOpen(true);
+  };
+  const handleClose = () => {
+    setOpen(false);
+    setIsEdit(false);
+    setEditData(null);
+  };
 
   useEffect(() => {
     fetchCategory();
   }, []);
 
   function handleCategoryFormSubmit(data) {
-    if (editMode) {
-      // data.id = data._id
+    if (isEdit && editData) {
+      data._id = editData._id;
       fetch(`${APIBASE}/category`, {
         method: "PUT",
         headers: {
@@ -57,10 +110,10 @@ export default function Home() {
         },
         body: JSON.stringify(data),
       }).then(() => {
-        reset({ name: '', order: '' })
-        fetchCategory()
+        fetchCategory();
+        handleClose();
       });
-      return
+      return;
     }
     fetch(`${APIBASE}/category`, {
       method: "POST",
@@ -69,8 +122,8 @@ export default function Home() {
       },
       body: JSON.stringify(data),
     }).then(() => {
-      reset({ name: '', order: '' })
-      fetchCategory()
+      fetchCategory();
+      handleClose();
     });
   }
 
@@ -135,7 +188,12 @@ export default function Home() {
           aria-labelledby="modal-modal-title"
           aria-describedby="modal-modal-description"
         >
-          <CategoryForm onSubmit={handleCategoryFormSubmit} />
+          <CategoryForm
+            onSubmit={handleCategoryFormSubmit}
+            editData={editData}
+            isEdit={isEdit}
+            onCancel={handleClose}
+          />
         </Modal>
         <DataGrid
           slots={{
